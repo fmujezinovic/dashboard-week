@@ -1,5 +1,7 @@
 // components/Sidebar.tsx
 "use client"
+import Link from "next/link"
+
 
 import {
   BarChart3,
@@ -21,10 +23,13 @@ const Sidebar = () => {
         <LayoutDashboard className="h-4 w-4" />
         Dashboard
       </Button>
-      <Button variant="ghost" className="w-full justify-start gap-2">
-        <Users className="h-4 w-4" />
-        Zdravniki
-      </Button>
+      <Button asChild variant="ghost" className="w-full justify-start gap-2">
+  <Link href="/dashboard/zdravniki">
+    <Users className="h-4 w-4" />
+    Zdravniki
+  </Link>
+</Button>
+
       <Button variant="ghost" className="w-full justify-start gap-2">
         <Home className="h-4 w-4" />
         Oddelki

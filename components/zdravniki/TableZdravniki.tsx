@@ -255,3 +255,4 @@ export default function TableZdravniki({ data }: TableZdravnikiProps) {
     </div>
   )
 }
+ 
