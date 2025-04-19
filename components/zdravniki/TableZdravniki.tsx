@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   useReactTable,
   getCoreRowModel,
@@ -39,8 +39,12 @@ type Zdravnik = {
   priimek: string
   email: string
   skrajsava: string
-  oddelek: string
   vloga: string[]
+  oddelek?: {
+    id: string
+    naziv: string
+  } | null
+  oddelek_id?: string
 }
 
 interface TableZdravnikiProps {
@@ -53,17 +57,26 @@ export default function TableZdravniki({ data }: TableZdravnikiProps) {
   const [search, setSearch] = useState("")
   const [openDialog, setOpenDialog] = useState(false)
   const [editData, setEditData] = useState<Zdravnik | null>(null)
+  const [oddelki, setOddelki] = useState<{ id: string; naziv: string }[]>([])
 
-  const [form, setForm] = useState<Omit<Zdravnik, "id">>({
+  const [form, setForm] = useState({
     ime: "",
     priimek: "",
     email: "",
     skrajsava: "",
-    oddelek: "",
-    vloga: [],
+    oddelek_id: "",
+    vloga: "",
   })
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  useEffect(() => {
+    const fetchOddelki = async () => {
+      const { data } = await supabase.from("oddelki").select("*")
+      setOddelki(data || [])
+    }
+    fetchOddelki()
+  }, [supabase])
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target
     setForm({ ...form, [name]: value })
   }
@@ -71,7 +84,7 @@ export default function TableZdravniki({ data }: TableZdravnikiProps) {
   const handleSave = async () => {
     const payload = {
       ...form,
-      vloga: typeof form.vloga === "string" ? form.vloga.split(",").map(v => v.trim()) : form.vloga,
+      vloga: form.vloga.split(",").map(v => v.trim()),
     }
 
     if (editData) {
@@ -106,7 +119,11 @@ export default function TableZdravniki({ data }: TableZdravnikiProps) {
         <span className="text-sm font-medium text-gray-800">{getValue()}</span>
       ),
     },
-    { accessorKey: "oddelek", header: "Oddelek" },
+    {
+      accessorKey: "oddelek.naziv",
+      header: "Oddelek",
+      cell: ({ row }) => row.original.oddelek?.naziv || "–",
+    },
     {
       accessorKey: "vloga",
       header: "Vloga",
@@ -139,15 +156,14 @@ export default function TableZdravniki({ data }: TableZdravnikiProps) {
                   priimek: z.priimek,
                   email: z.email,
                   skrajsava: z.skrajsava,
-                  oddelek: z.oddelek,
+                  oddelek_id: z.oddelek_id || "",
                   vloga: z.vloga.join(", "),
-                } as any)
+                })
                 setOpenDialog(true)
               }}
             >
               <Pencil1Icon />
             </Button>
-
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button size="icon" variant="destructive">
@@ -156,15 +172,11 @@ export default function TableZdravniki({ data }: TableZdravnikiProps) {
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    Ali ste prepričani, da želite izbrisati zdravnika?
-                  </AlertDialogTitle>
+                  <AlertDialogTitle>Ali ste prepričani, da želite izbrisati zdravnika?</AlertDialogTitle>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Prekliči</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => handleDelete(z.id)}>
-                    Izbriši
-                  </AlertDialogAction>
+                  <AlertDialogAction onClick={() => handleDelete(z.id)}>Izbriši</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
@@ -208,8 +220,20 @@ export default function TableZdravniki({ data }: TableZdravnikiProps) {
               <Input name="priimek" placeholder="Priimek" value={form.priimek} onChange={handleChange} />
               <Input name="email" placeholder="Email" value={form.email} onChange={handleChange} />
               <Input name="skrajsava" placeholder="Skrajšava" value={form.skrajsava} onChange={handleChange} />
-              <Input name="oddelek" placeholder="Oddelek" value={form.oddelek} onChange={handleChange} />
-              <Input name="vloga" placeholder="Vloga (admin, specialist...)" value={form.vloga as string} onChange={handleChange} />
+              <select
+                name="oddelek_id"
+                value={form.oddelek_id}
+                onChange={handleChange}
+                className="border rounded px-3 py-2"
+              >
+                <option value="">Izberi oddelek</option>
+                {oddelki.map(o => (
+                  <option key={o.id} value={o.id}>
+                    {o.naziv}
+                  </option>
+                ))}
+              </select>
+              <Input name="vloga" placeholder="Vloga (admin, specialist...)" value={form.vloga} onChange={handleChange} />
             </div>
             <DialogFooter>
               <Button onClick={handleSave}>Shrani</Button>
@@ -255,4 +279,3 @@ export default function TableZdravniki({ data }: TableZdravnikiProps) {
     </div>
   )
 }
- 
