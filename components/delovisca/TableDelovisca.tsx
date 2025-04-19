@@ -58,18 +58,25 @@ export default function TableDelovisca({ data }: Props) {
   const [oddOptions, setOddOptions] = useState<Oddelek[]>([])
 
   useEffect(() => {
-    supabase
-      .from("oddelki")
-      .select("id, naziv")
-      .then(({ data, error }) => {
-        if (error) {
-          console.error(error)
-          toast.error("Napaka pri nalaganju oddelkov")
-        } else if (data) {
-          setOddOptions(data)
-        }
-      })
-  }, [])
+  supabase
+    .from("oddelki")
+    .select("id, naziv")
+    .then(({ data, error }) => {
+      if (error) {
+        console.error(error)
+        toast.error("Napaka pri nalaganju oddelkov")
+        return
+      }
+      if (data) {
+        // odstranimo podvojene po nazivu
+        const unique = data.filter((o, i, arr) =>
+          arr.findIndex(x => x.naziv === o.naziv) === i
+        )
+        setOddOptions(unique)
+      }
+    })
+}, [])
+
 
   const handleSave = async () => {
     if (!naziv) {
