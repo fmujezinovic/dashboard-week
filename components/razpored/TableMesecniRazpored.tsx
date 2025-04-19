@@ -239,10 +239,18 @@ export default function TableMesecniRazpored() {
                             {zdravnikiZaCelico.map((z) => (
                               <Badge key={z.id} className="flex items-center gap-1">
                                 {z.skrajsava}
-                                <X className="w-3 h-3 cursor-pointer" onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleRemoveZdravnik({ datum: dateStr, delovisce_id: d.id }, z)
-                                }} />
+                                <button
+  onClick={(e) => {
+    e.stopPropagation()
+    handleRemoveZdravnik({ datum: dateStr, delovisce_id: d.id }, z)
+  }}
+  className="ml-1 text-muted-foreground hover:text-destructive"
+  type="button"
+>
+  <X className="w-3 h-3" />
+</button>
+
+
                               </Badge>
                             ))}
                           </div>
