@@ -2,156 +2,184 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/utils/supabase/client"
-import { DndContext, closestCenter } from "@dnd-kit/core"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import {
-  SortableContext,
-  arrayMove,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable"
-import SortableItem from "./SortableItem"
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { toast } from "sonner"
+import { Pencil, Trash2, Plus } from "lucide-react"
 
 type Delovisce = {
   id: string
   naziv: string
-  telefoni: string[] | null
-}
-
-type Oddelek = {
-  id: string
-  naziv: string
-}
-
-type Povezava = {
-  id: string
-  delovisce_id: string
-  oddelek_id: string | null
-  sort_index: number
-  delovisce: Delovisce
+  telefoni: string[]
 }
 
 export default function TableDelovisca() {
   const supabase = createClient()
-  const [oddelki, setOddelki] = useState<Oddelek[]>([])
-  const [selectedOddelek, setSelectedOddelek] = useState<string>("klinika")
-  const [povezave, setPovezave] = useState<Povezava[]>([])
+  const [delovisca, setDelovisca] = useState<Delovisce[]>([])
+  const [filtered, setFiltered] = useState<Delovisce[]>([])
+  const [search, setSearch] = useState("")
+  const [openDialog, setOpenDialog] = useState(false)
+  const [editing, setEditing] = useState<Delovisce | null>(null)
+  const [naziv, setNaziv] = useState("")
+  const [telefoni, setTelefoni] = useState("")
 
-  // 🔹 Naloži oddelke
-  useEffect(() => {
-    const fetchOddelki = async () => {
-      const { data, error } = await supabase.from("oddelki").select("*")
-      if (error) {
-        console.error("❌ Napaka pri nalaganju oddelkov:", error)
-        toast.error("Napaka pri nalaganju oddelkov")
-      } else {
-        setOddelki(data ?? [])
-      }
+  const fetchData = async () => {
+    const { data, error } = await supabase.from("delovisca").select("*").order("naziv")
+    if (error) {
+      toast.error("Napaka pri nalaganju")
+    } else {
+      setDelovisca(data)
+      setFiltered(data)
     }
+  }
 
-    fetchOddelki()
+  useEffect(() => {
+    fetchData()
   }, [])
 
-  // 🔹 Naloži povezave
   useEffect(() => {
-    const fetchPovezave = async () => {
-      let query = supabase
-        .from("delovisca_oddelki")
-        .select("id, delovisce_id, oddelek_id, sort_index, delovisce:delovisce_id(id, naziv, telefoni)")
-        .order("sort_index", { ascending: true })
+    const s = search.toLowerCase()
+    setFiltered(
+      delovisca.filter((d) => d.naziv.toLowerCase().includes(s))
+    )
+  }, [search, delovisca])
 
-      if (selectedOddelek === "klinika") {
-        query = query.is("oddelek_id", null)
-      } else {
-        query = query.eq("oddelek_id", selectedOddelek)
-      }
+  const resetDialog = () => {
+    setNaziv("")
+    setTelefoni("")
+    setEditing(null)
+  }
 
-      const { data, error } = await query
-
-      if (error) {
-        console.error("❌ Napaka pri nalaganju delovišč:", error)
-        toast.error("Napaka pri nalaganju delovišč")
-        setPovezave([])
-      } else {
-        setPovezave(data as Povezava[])
-      }
+  const handleSave = async () => {
+    const payload = {
+      naziv,
+      telefoni: telefoni.split(",").map(t => t.trim()).filter(Boolean),
     }
 
-    fetchPovezave()
-  }, [selectedOddelek])
+    if (editing) {
+      const { error } = await supabase
+        .from("delovisca")
+        .update(payload)
+        .eq("id", editing.id)
 
-  // 🔹 Drag and drop logika
-  const handleDragEnd = async (event: any) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-
-    const oldIndex = povezave.findIndex(p => p.id === active.id)
-    const newIndex = povezave.findIndex(p => p.id === over.id)
-
-    const newOrder = arrayMove(povezave, oldIndex, newIndex)
-    setPovezave(newOrder)
-
-    const updates = newOrder.map((p, index) => ({
-      id: p.id,
-      sort_index: index,
-    }))
-
-    const { error } = await supabase.from("delovisca_oddelki").upsert(updates)
-    if (error) {
-      console.error("❌ Napaka pri shranjevanju razvrstitve:", error)
-      toast.error("Napaka pri shranjevanju razvrstitve")
+      if (error) toast.error("Napaka pri urejanju")
+      else toast.success("Delovišče posodobljeno")
     } else {
-      toast.success("Razvrstitev uspešno shranjena")
+      const { error } = await supabase.from("delovisca").insert([payload])
+      if (error) toast.error("Napaka pri dodajanju")
+      else toast.success("Delovišče dodano")
+    }
+
+    setOpenDialog(false)
+    resetDialog()
+    fetchData()
+  }
+
+  const handleDelete = async (id: string) => {
+    const { error } = await supabase.from("delovisca").delete().eq("id", id)
+    if (error) toast.error("Napaka pri brisanju")
+    else {
+      toast.success("Delovišče izbrisano")
+      fetchData()
     }
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Delovišča</h1>
-        <select
-          className="border px-3 py-2 rounded"
-          value={selectedOddelek}
-          onChange={e => setSelectedOddelek(e.target.value)}
-        >
-          <option value="klinika">Vsa delovišča (klinika)</option>
-          {oddelki.map(o => (
-            <option key={o.id} value={o.id}>
-              {o.naziv}
-            </option>
-          ))}
-        </select>
+      <div className="flex justify-between items-center gap-2">
+        <Input
+          placeholder="Išči delovišče..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-xs"
+        />
+        <Dialog open={openDialog} onOpenChange={setOpenDialog}>
+          <DialogTrigger asChild>
+            <Button onClick={() => resetDialog()}>
+              <Plus className="w-4 h-4 mr-2" /> Novo delovišče
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {editing ? "Uredi delovišče" : "Dodaj delovišče"}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <Input
+                placeholder="Naziv"
+                value={naziv}
+                onChange={(e) => setNaziv(e.target.value)}
+              />
+              <Input
+                placeholder="Telefoni (ločeni z vejico)"
+                value={telefoni}
+                onChange={(e) => setTelefoni(e.target.value)}
+              />
+              <Button onClick={handleSave} className="w-full">
+                Shrani
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext
-          items={povezave.map(p => p.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <ul className="space-y-2">
-            {povezave.map(p => (
-              <SortableItem
-                key={p.id}
-                id={p.id}
-                content={
-                  <div className="p-4 rounded-md border bg-white hover:bg-gray-50 transition-colors w-full">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold text-gray-800">
-                        {p.delovisce.naziv}
-                      </span>
-                      {Array.isArray(p.delovisce.telefoni) &&
-                        p.delovisce.telefoni.length > 0 && (
-                          <span className="text-sm text-gray-500">
-                            {p.delovisce.telefoni.join(", ")}
-                          </span>
-                        )}
-                    </div>
-                  </div>
-                }
-              />
+      <div className="rounded-md border">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-muted">
+              <th className="p-3 text-left">Naziv</th>
+              <th className="p-3 text-left">Telefoni</th>
+              <th className="p-3 text-right">Akcije</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((d) => (
+              <tr key={d.id} className="border-t hover:bg-muted/50">
+                <td className="p-3">{d.naziv}</td>
+                <td className="p-3 text-muted-foreground">
+                  {d.telefoni?.join(", ")}
+                </td>
+                <td className="p-3 text-right flex justify-end gap-2">
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    onClick={() => {
+                      setEditing(d)
+                      setNaziv(d.naziv)
+                      setTelefoni(d.telefoni.join(", "))
+                      setOpenDialog(true)
+                    }}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="destructive"
+                    onClick={() => handleDelete(d.id)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </td>
+              </tr>
             ))}
-          </ul>
-        </SortableContext>
-      </DndContext>
+            {filtered.length === 0 && (
+              <tr>
+                <td colSpan={3} className="p-3 text-center text-muted-foreground">
+                  Ni rezultatov
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
