@@ -1,16 +1,14 @@
-// components/Sidebar.tsx
 "use client"
+
 import Link from "next/link"
-
-
 import {
   BarChart3,
   Calendar,
-  ClipboardList,
   Home,
   LayoutDashboard,
   RefreshCw,
   Users,
+  FolderTree,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -19,40 +17,77 @@ const Sidebar = () => {
     <aside className="w-64 h-screen border-r bg-muted/40 p-4 space-y-2 hidden md:flex flex-col">
       <h2 className="text-xl font-semibold mb-4">Admin Dashboard</h2>
 
-      <Button variant="ghost" className="w-full justify-start gap-2">
-        <LayoutDashboard className="h-4 w-4" />
-        Dashboard
-      </Button>
       <Button asChild variant="ghost" className="w-full justify-start gap-2">
-  <Link href="/dashboard/zdravniki">
-    <Users className="h-4 w-4" />
-    Zdravniki
-  </Link>
-</Button>
+        <Link href="/dashboard">
+          <LayoutDashboard className="h-4 w-4" />
+          Dashboard
+        </Link>
+      </Button>
 
-      <Button variant="ghost" className="w-full justify-start gap-2">
-        <Home className="h-4 w-4" />
-        Oddelki
+      <Button asChild variant="ghost" className="w-full justify-start gap-2">
+        <Link href="/dashboard/zdravniki">
+          <Users className="h-4 w-4" />
+          Zdravniki
+        </Link>
       </Button>
-      <Button variant="ghost" className="w-full justify-start gap-2">
-        <Calendar className="h-4 w-4" />
-        Delovišča - Dnevna
+
+      <Button asChild variant="ghost" className="w-full justify-start gap-2">
+        <Link href="/dashboard/oddelki">
+          <Home className="h-4 w-4" />
+          Oddelki
+        </Link>
       </Button>
-      <Button variant="ghost" className="w-full justify-start gap-2">
-        <Calendar className="h-4 w-4" />
-        Delovišča - Tedenska
+
+      {/* Klikabilni link za Delovišča */}
+      <Button asChild variant="ghost" className="w-full justify-start gap-2">
+        <Link href="/dashboard/delovisca">
+          <FolderTree className="h-4 w-4" />
+          Delovišča
+        </Link>
+          </Button>
+
+         {/* Separator */}
+          
+          <hr className="border-t border-gray-300 my-2" />
+
+      {/* Podkategorije */}
+      <Button asChild variant="ghost" className="w-full justify-start gap-2 pl-8">
+        <Link href="/dashboard/delovisca/mesecna">
+          <Calendar className="h-4 w-4" />
+          Mesečni razpored
+        </Link>
       </Button>
-      <Button variant="ghost" className="w-full justify-start gap-2">
-        <Calendar className="h-4 w-4" />
-        Delovišča - Mesečna
+
+      <Button asChild variant="ghost" className="w-full justify-start gap-2 pl-8">
+        <Link href="/dashboard/delovisca/tedenska">
+          <Calendar className="h-4 w-4" />
+          Tedenski razpored
+        </Link>
       </Button>
-      <Button variant="ghost" className="w-full justify-start gap-2">
-        <RefreshCw className="h-4 w-4" />
-        Zamenjave
+
+      <Button asChild variant="ghost" className="w-full justify-start gap-2 pl-8">
+        <Link href="/dashboard/delovisca/dnevna">
+          <Calendar className="h-4 w-4" />
+          Dnevni razpored
+        </Link>
+          </Button>
+          
+            {/* Separator */}
+          
+          <hr className="border-t border-gray-300 my-2" />
+
+      <Button asChild variant="ghost" className="w-full justify-start gap-2">
+        <Link href="/dashboard/zamenjave">
+          <RefreshCw className="h-4 w-4" />
+          Zamenjave
+        </Link>
       </Button>
-      <Button variant="ghost" className="w-full justify-start gap-2">
-        <BarChart3 className="h-4 w-4" />
-        Analiza
+
+      <Button asChild variant="ghost" className="w-full justify-start gap-2">
+        <Link href="/dashboard/analiza">
+          <BarChart3 className="h-4 w-4" />
+          Analiza
+        </Link>
       </Button>
     </aside>
   )
