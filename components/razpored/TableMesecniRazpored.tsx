@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
+import { X } from "lucide-react"
 
 // Types
 
@@ -74,15 +76,17 @@ export default function TableMesecniRazpored() {
   }, [selectedOddelek])
 
   useEffect(() => {
-    if (!selectedOddelek) return
     const start = new Date(leto, mesec - 1, 1).toISOString()
     const end = new Date(leto, mesec, 0).toISOString()
+
+    const filter = selectedOddelek ? { oddelek_id: selectedOddelek } : {}
+
     supabase
       .from("mesecni_razporedi")
-      .select("id, datum, delovisce_id, mesecni_razporedi_zdravniki(zdravnik_id, zdravniki(id, skrajsava))")
+      .select("id, datum, delovisce_id, oddelek_id, mesecni_razporedi_zdravniki(zdravnik_id, zdravniki(id, skrajsava))")
       .gte("datum", start)
       .lte("datum", end)
-      .eq("oddelek_id", selectedOddelek)
+      .match(filter)
       .then(({ data }) => {
         const r: Record<string, Zdravnik[]> = {}
         const rIds: Record<string, string> = {}
@@ -99,34 +103,76 @@ export default function TableMesecniRazpored() {
       })
   }, [leto, mesec, selectedOddelek])
 
-  const handleAddZdravnik = async (celica: DnevnaCelica, zdravnik: Zdravnik) => {
+  const handleAddZdravnik = async (celica: DnevnaCelica, zdravnik: Zdravnik, closeAfter?: boolean) => {
     const key = `${celica.datum}_${celica.delovisce_id}`
     const current = razpored[key] || []
     if (current.find((z) => z.id === zdravnik.id)) return
 
     let razporedId = razporedIds[key]
     if (!razporedId) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("mesecni_razporedi")
-        .insert({ datum: celica.datum, delovisce_id: celica.delovisce_id, oddelek_id: selectedOddelek })
+        .insert({
+          datum: celica.datum,
+          delovisce_id: celica.delovisce_id,
+          ...(selectedOddelek && { oddelek_id: selectedOddelek }),
+        })
         .select()
         .single()
-      if (!data) return
+      if (error || !data) return toast.error("Napaka pri ustvarjanju razporeda")
       razporedId = data.id
       setRazporedIds((prev) => ({ ...prev, [key]: razporedId }))
     }
 
-    await supabase
+    const { error } = await supabase
       .from("mesecni_razporedi_zdravniki")
       .insert({ razpored_id: razporedId, zdravnik_id: zdravnik.id })
 
+    if (error) return toast.error("Napaka pri dodajanju zdravnika")
+
     setRazpored((prev) => ({ ...prev, [key]: [...current, zdravnik] }))
+    toast.success("Zdravnik dodan")
     setSearch("")
+    if (closeAfter) setOpenCell(null)
+  }
+
+  const handleRemoveZdravnik = async (celica: DnevnaCelica, zdravnik: Zdravnik) => {
+    const key = `${celica.datum}_${celica.delovisce_id}`
+    const razporedId = razporedIds[key]
+    if (!razporedId) return toast.error("Razpored ni najden")
+
+    const { error } = await supabase
+      .from("mesecni_razporedi_zdravniki")
+      .delete()
+      .eq("razpored_id", razporedId)
+      .eq("zdravnik_id", zdravnik.id)
+
+    if (error) return toast.error("Napaka pri odstranitvi zdravnika")
+
+    setRazpored((prev) => {
+      const updated = (prev[key] || []).filter((z) => z.id !== zdravnik.id)
+      return { ...prev, [key]: updated }
+    })
+    toast.success("Zdravnik odstranjen")
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const filtered = zdravniki.filter((z) =>
+      z.skrajsava?.toLowerCase().includes(search.toLowerCase())
+    )
+    const firstMatch = filtered[0]
+
+    if (e.key === "Tab" && firstMatch && openCell) {
+      e.preventDefault()
+      handleAddZdravnik(openCell, firstMatch)
+    }
+
+    if (e.key === "Enter" && firstMatch && openCell) {
+      e.preventDefault()
+      handleAddZdravnik(openCell, firstMatch, true)
+    }
+
     if (e.key === "Escape") setOpenCell(null)
-    if (e.key === "Enter") setOpenCell(null)
   }
 
   return (
@@ -183,12 +229,21 @@ export default function TableMesecniRazpored() {
                       <td
                         key={d.id}
                         className="px-2 py-1 border hover:bg-muted cursor-pointer"
-                        onClick={() => setOpenCell({ datum: dateStr, delovisce_id: d.id })}
+                        onClick={(e) => {
+                          if ((e.target as HTMLElement).closest("svg,button")) return
+                          setOpenCell({ datum: dateStr, delovisce_id: d.id })
+                        }}
                       >
                         {zdravnikiZaCelico.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
                             {zdravnikiZaCelico.map((z) => (
-                              <Badge key={z.id}>{z.skrajsava}</Badge>
+                              <Badge key={z.id} className="flex items-center gap-1">
+                                {z.skrajsava}
+                                <X className="w-3 h-3 cursor-pointer" onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleRemoveZdravnik({ datum: dateStr, delovisce_id: d.id }, z)
+                                }} />
+                              </Badge>
                             ))}
                           </div>
                         ) : (
@@ -232,3 +287,4 @@ export default function TableMesecniRazpored() {
     </div>
   )
 }
+
