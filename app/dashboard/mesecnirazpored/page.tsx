@@ -1,4 +1,4 @@
-import TableMesecniRazpored from "@/components/razpored/TableMesecniRazpored"
+import TableMesecniRazpored from "@/components/mesecni/TableMesecniRazpored"
 
 export default function MesecniRazporedPage() {
   return (
