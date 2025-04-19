@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/utils/supabase/client"
-import { format, getDaysInMonth } from "date-fns"
+import { format, getDaysInMonth, getDay } from "date-fns"
 import { sl } from "date-fns/locale"
 import { Badge } from "@/components/ui/badge"
 import { Dialog, DialogTrigger, DialogContent } from "@/components/ui/dialog"
@@ -39,15 +39,19 @@ export default function TableMesecniRazpored() {
 
   useEffect(() => {
     const fetchDelovisca = async () => {
-      if (!selectedOddelek) return
-      const { data } = await supabase
-        .from("delovisca_oddelki")
-        .select("delovisce(id, naziv)")
-        .eq("oddelek_id", selectedOddelek)
-        .order("sort_index", { ascending: true })
-      if (data) {
-        const unique = data.map((d: any) => d.delovisce)
-        setDelovisca(unique)
+      if (selectedOddelek) {
+        const { data } = await supabase
+          .from("delovisca_oddelki")
+          .select("delovisce(id, naziv)")
+          .eq("oddelek_id", selectedOddelek)
+          .order("sort_index", { ascending: true })
+        if (data) {
+          const mapped = data.map((d: any) => d.delovisce)
+          setDelovisca(mapped)
+        }
+      } else {
+        const { data } = await supabase.from("delovisca").select("id, naziv")
+        if (data) setDelovisca(data)
       }
     }
     fetchDelovisca()
@@ -55,7 +59,7 @@ export default function TableMesecniRazpored() {
 
   useEffect(() => {
     const fetchZdravniki = async () => {
-      if (!selectedOddelek) return
+      if (!selectedOddelek) return setZdravniki([])
       const { data } = await supabase
         .from("zdravniki")
         .select("id, skrajsava")
@@ -75,9 +79,17 @@ export default function TableMesecniRazpored() {
     setRazpored({ ...razpored, [key]: updated })
   }
 
+  const getDanVTednu = (date: Date) => {
+    return format(date, "EEEE", { locale: sl })
+  }
+
+  const isWeekend = (date: Date) => {
+    const day = getDay(date)
+    return day === 0 || day === 6 // nedelja ali sobota
+  }
+
   return (
     <div className="space-y-4">
-      {/* Filterji */}
       <div className="flex gap-4 items-center">
         <select
           value={mesec}
@@ -108,7 +120,7 @@ export default function TableMesecniRazpored() {
           onChange={(e) => setSelectedOddelek(e.target.value)}
           className="border px-3 py-2 rounded"
         >
-          <option value="">Izberi oddelek</option>
+          <option value="">Vsi oddelki</option>
           {oddelki.map((o) => (
             <option key={o.id} value={o.id}>
               {o.naziv}
@@ -117,7 +129,6 @@ export default function TableMesecniRazpored() {
         </select>
       </div>
 
-      {/* Tabela */}
       <div className="overflow-auto border rounded">
         <table className="min-w-full text-sm border-collapse">
           <thead>
@@ -132,13 +143,14 @@ export default function TableMesecniRazpored() {
           </thead>
           <tbody>
             {days.map((day) => {
-              const dateStr = format(new Date(leto, mesec - 1, day), "yyyy-MM-dd")
+              const date = new Date(leto, mesec - 1, day)
+              const dateStr = format(date, "yyyy-MM-dd")
+              const isWeekendDay = isWeekend(date)
               return (
-                <tr key={day}>
+                <tr key={day} className={isWeekendDay ? "bg-muted/40" : ""}>
                   <td className="px-2 py-1 border font-medium whitespace-nowrap">
-                    {format(new Date(leto, mesec - 1, day), "dd. MMM", {
-                      locale: sl,
-                    })}
+                    {format(date, "d.M.yyyy", { locale: sl })},{" "}
+                    {getDanVTednu(date)}
                   </td>
                   {delovisca.map((d) => {
                     const key = `${dateStr}_${d.id}`
