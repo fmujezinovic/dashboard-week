@@ -14,7 +14,7 @@ import { toast } from "sonner"
 type Delovisce = {
   id: string
   naziv: string
-  telefoni: string[]
+  telefoni: string[] | null
 }
 
 type Oddelek = {
@@ -36,7 +36,7 @@ export default function TableDelovisca() {
   const [selectedOddelek, setSelectedOddelek] = useState<string>("klinika")
   const [povezave, setPovezave] = useState<Povezava[]>([])
 
-  // 🟦 Fetch oddelki
+  // 🔹 Naloži oddelke
   useEffect(() => {
     const fetchOddelki = async () => {
       const { data, error } = await supabase.from("oddelki").select("*")
@@ -51,13 +51,12 @@ export default function TableDelovisca() {
     fetchOddelki()
   }, [])
 
-  // 🟦 Fetch povezave glede na izbran oddelek
+  // 🔹 Naloži povezave
   useEffect(() => {
     const fetchPovezave = async () => {
       let query = supabase
         .from("delovisca_oddelki")
-       .select("id, delovisce_id, oddelek_id, sort_index, delovisce:delovisca(id, naziv, telefoni)")
-
+        .select("id, delovisce_id, oddelek_id, sort_index, delovisce:delovisce_id(id, naziv, telefoni)")
         .order("sort_index", { ascending: true })
 
       if (selectedOddelek === "klinika") {
@@ -80,7 +79,7 @@ export default function TableDelovisca() {
     fetchPovezave()
   }, [selectedOddelek])
 
-  // 🟦 Drag-and-drop reorder
+  // 🔹 Drag and drop logika
   const handleDragEnd = async (event: any) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -134,10 +133,17 @@ export default function TableDelovisca() {
                 key={p.id}
                 id={p.id}
                 content={
-                  <div className="p-4 border rounded bg-white flex justify-between items-center">
-                    <span className="font-medium">{p.delovisce.naziv}</span>
-                    <div className="text-sm text-muted-foreground">
-                      {p.delovisce.telefoni?.join(", ")}
+                  <div className="p-4 rounded-md border bg-white hover:bg-gray-50 transition-colors w-full">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-gray-800">
+                        {p.delovisce.naziv}
+                      </span>
+                      {Array.isArray(p.delovisce.telefoni) &&
+                        p.delovisce.telefoni.length > 0 && (
+                          <span className="text-sm text-gray-500">
+                            {p.delovisce.telefoni.join(", ")}
+                          </span>
+                        )}
                     </div>
                   </div>
                 }
