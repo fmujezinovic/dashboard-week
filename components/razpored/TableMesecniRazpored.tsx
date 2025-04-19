@@ -10,7 +10,10 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+
+// Types
 
 type Oddelek = { id: string; naziv: string }
 type Delovisce = { id: string; naziv: string }
@@ -19,196 +22,129 @@ type DnevnaCelica = { datum: string; delovisce_id: string }
 
 export default function TableMesecniRazpored() {
   const supabase = createClient()
-
   const today = new Date()
+
   const [leto, setLeto] = useState(today.getFullYear())
   const [mesec, setMesec] = useState(today.getMonth() + 1)
   const [oddelki, setOddelki] = useState<Oddelek[]>([])
   const [selectedOddelek, setSelectedOddelek] = useState("")
   const [delovisca, setDelovisca] = useState<Delovisce[]>([])
   const [zdravniki, setZdravniki] = useState<Zdravnik[]>([])
-  const [openCell, setOpenCell] = useState<DnevnaCelica | null>(null)
   const [razpored, setRazpored] = useState<Record<string, Zdravnik[]>>({})
   const [razporedIds, setRazporedIds] = useState<Record<string, string>>({})
+  const [openCell, setOpenCell] = useState<DnevnaCelica | null>(null)
+  const [search, setSearch] = useState("")
 
   const daysInMonth = getDaysInMonth(new Date(leto, mesec - 1))
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1)
 
-  // 🔁 Fetch oddelki
   useEffect(() => {
-    const fetchOddelki = async () => {
-      const { data } = await supabase.from("oddelki").select("*")
+    supabase.from("oddelki").select("*").then(({ data }) => {
       if (data) setOddelki(data)
-    }
-    fetchOddelki()
+    })
   }, [])
 
-  // 🔁 Fetch delovišča
   useEffect(() => {
-    const fetchDelovisca = async () => {
-      if (selectedOddelek) {
-        const { data } = await supabase
-          .from("delovisca_oddelki")
-          .select("delovisce(id, naziv)")
-          .eq("oddelek_id", selectedOddelek)
-          .order("sort_index", { ascending: true })
-        if (data) {
-          const mapped = data.map((d: any) => d.delovisce)
-          setDelovisca(mapped)
-        }
-      } else {
-        const { data } = await supabase.from("delovisca").select("id, naziv")
+    if (selectedOddelek) {
+      supabase
+        .from("delovisca_oddelki")
+        .select("delovisce(id, naziv)")
+        .eq("oddelek_id", selectedOddelek)
+        .order("sort_index")
+        .then(({ data }) => {
+          if (data) setDelovisca(data.map((d: any) => d.delovisce))
+        })
+    } else {
+      supabase.from("delovisca").select("id, naziv").then(({ data }) => {
         if (data) setDelovisca(data)
-      }
+      })
     }
-    fetchDelovisca()
   }, [selectedOddelek])
 
-  // 🔁 Fetch zdravniki za izbrani oddelek
   useEffect(() => {
     const fetchZdravniki = async () => {
-      if (!selectedOddelek) return setZdravniki([])
-      const { data } = await supabase
-        .from("zdravniki")
-        .select("id, skrajsava")
-        .eq("oddelek_id", selectedOddelek)
+      let query = supabase.from("zdravniki").select("id, skrajsava")
+      if (selectedOddelek) {
+        query = query.eq("oddelek_id", selectedOddelek)
+      }
+      const { data } = await query
       if (data) setZdravniki(data)
     }
     fetchZdravniki()
   }, [selectedOddelek])
 
-  // 🔁 Fetch obstoječi razporedi
   useEffect(() => {
-    const fetchRazpored = async () => {
-      if (!selectedOddelek) return
-      const start = new Date(leto, mesec - 1, 1)
-      const end = new Date(leto, mesec, 0)
-
-      const { data } = await supabase
-        .from("mesecni_razporedi")
-        .select(`
-          id,
-          datum,
-          delovisce_id,
-          mesecni_razporedi_zdravniki (
-            zdravnik_id,
-            zdravniki (
-              id,
-              skrajsava
-            )
-          )
-        `)
-        .gte("datum", start.toISOString())
-        .lte("datum", end.toISOString())
-        .eq("oddelek_id", selectedOddelek)
-
-      const newRazpored: Record<string, Zdravnik[]> = {}
-      const newRazporedIds: Record<string, string> = {}
-
-      if (data) {
-        for (const entry of data) {
+    if (!selectedOddelek) return
+    const start = new Date(leto, mesec - 1, 1).toISOString()
+    const end = new Date(leto, mesec, 0).toISOString()
+    supabase
+      .from("mesecni_razporedi")
+      .select("id, datum, delovisce_id, mesecni_razporedi_zdravniki(zdravnik_id, zdravniki(id, skrajsava))")
+      .gte("datum", start)
+      .lte("datum", end)
+      .eq("oddelek_id", selectedOddelek)
+      .then(({ data }) => {
+        const r: Record<string, Zdravnik[]> = {}
+        const rIds: Record<string, string> = {}
+        data?.forEach((entry) => {
           const key = `${entry.datum}_${entry.delovisce_id}`
-          newRazporedIds[key] = entry.id
-          const zdravniki = entry.mesecni_razporedi_zdravniki.map((z: any) => ({
+          rIds[key] = entry.id
+          r[key] = entry.mesecni_razporedi_zdravniki.map((z: any) => ({
             id: z.zdravniki.id,
             skrajsava: z.zdravniki.skrajsava,
           }))
-          newRazpored[key] = zdravniki
-        }
-      }
-
-      setRazpored(newRazpored)
-      setRazporedIds(newRazporedIds)
-    }
-
-    fetchRazpored()
+        })
+        setRazpored(r)
+        setRazporedIds(rIds)
+      })
   }, [leto, mesec, selectedOddelek])
 
-  const handleSelectZdravnik = async (celica: DnevnaCelica, zdravnik: Zdravnik) => {
+  const handleAddZdravnik = async (celica: DnevnaCelica, zdravnik: Zdravnik) => {
     const key = `${celica.datum}_${celica.delovisce_id}`
     const current = razpored[key] || []
-    let razporedId = razporedIds[key]
+    if (current.find((z) => z.id === zdravnik.id)) return
 
-    // 📥 Če razporedId ne obstaja → vstavi mesecni_razpored
+    let razporedId = razporedIds[key]
     if (!razporedId) {
-      const { data: inserted } = await supabase
+      const { data } = await supabase
         .from("mesecni_razporedi")
-        .insert([
-          {
-            datum: celica.datum,
-            delovisce_id: celica.delovisce_id,
-            oddelek_id: selectedOddelek,
-          },
-        ])
+        .insert({ datum: celica.datum, delovisce_id: celica.delovisce_id, oddelek_id: selectedOddelek })
         .select()
         .single()
-
-      if (inserted) {
-        razporedId = inserted.id
-        setRazporedIds((prev) => ({ ...prev, [key]: razporedId }))
-      }
+      if (!data) return
+      razporedId = data.id
+      setRazporedIds((prev) => ({ ...prev, [key]: razporedId }))
     }
 
-    const alreadyExists = current.find((z) => z.id === zdravnik.id)
+    await supabase
+      .from("mesecni_razporedi_zdravniki")
+      .insert({ razpored_id: razporedId, zdravnik_id: zdravnik.id })
 
-    if (alreadyExists) {
-      await supabase
-        .from("mesecni_razporedi_zdravniki")
-        .delete()
-        .eq("razpored_id", razporedId)
-        .eq("zdravnik_id", zdravnik.id)
-
-      setRazpored((prev) => ({
-        ...prev,
-        [key]: current.filter((z) => z.id !== zdravnik.id),
-      }))
-    } else {
-      await supabase
-        .from("mesecni_razporedi_zdravniki")
-        .insert([{ razpored_id: razporedId, zdravnik_id: zdravnik.id }])
-
-      setRazpored((prev) => ({
-        ...prev,
-        [key]: [...current, zdravnik],
-      }))
-    }
+    setRazpored((prev) => ({ ...prev, [key]: [...current, zdravnik] }))
+    setSearch("")
   }
 
-  const getDanVTednu = (date: Date) => format(date, "EEEE", { locale: sl })
-  const isWeekend = (date: Date) => [0, 6].includes(getDay(date))
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Escape") setOpenCell(null)
+    if (e.key === "Enter") setOpenCell(null)
+  }
 
   return (
     <div className="space-y-4">
       <div className="flex gap-4 items-center">
-        <select
-          value={mesec}
-          onChange={(e) => setMesec(parseInt(e.target.value))}
-          className="border px-3 py-2 rounded"
-        >
+        <select value={mesec} onChange={(e) => setMesec(+e.target.value)} className="border px-3 py-2 rounded">
           {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
             <option key={m} value={m}>
               {format(new Date(leto, m - 1, 1), "LLLL", { locale: sl })}
             </option>
           ))}
         </select>
-
-        <select
-          value={leto}
-          onChange={(e) => setLeto(parseInt(e.target.value))}
-          className="border px-3 py-2 rounded"
-        >
+        <select value={leto} onChange={(e) => setLeto(+e.target.value)} className="border px-3 py-2 rounded">
           {[leto - 1, leto, leto + 1].map((l) => (
-            <option key={l} value={l}>
-              {l}
-            </option>
+            <option key={l}>{l}</option>
           ))}
         </select>
-
-        <select
-          value={selectedOddelek}
-          onChange={(e) => setSelectedOddelek(e.target.value)}
-          className="border px-3 py-2 rounded"
-        >
+        <select value={selectedOddelek} onChange={(e) => setSelectedOddelek(e.target.value)} className="border px-3 py-2 rounded">
           <option value="">Vsi oddelki</option>
           {oddelki.map((o) => (
             <option key={o.id} value={o.id}>
@@ -234,10 +170,11 @@ export default function TableMesecniRazpored() {
             {days.map((day) => {
               const date = new Date(leto, mesec - 1, day)
               const dateStr = format(date, "yyyy-MM-dd")
+              const isWeekend = [0, 6].includes(getDay(date))
               return (
-                <tr key={day} className={isWeekend(date) ? "bg-muted/40" : ""}>
+                <tr key={day} className={isWeekend ? "bg-muted/40" : ""}>
                   <td className="px-2 py-1 border font-medium whitespace-nowrap">
-                    {format(date, "d.M.yyyy", { locale: sl })}, {getDanVTednu(date)}
+                    {format(date, "d.M.yyyy", { locale: sl })}, {format(date, "EEEE", { locale: sl })}
                   </td>
                   {delovisca.map((d) => {
                     const key = `${dateStr}_${d.id}`
@@ -246,9 +183,7 @@ export default function TableMesecniRazpored() {
                       <td
                         key={d.id}
                         className="px-2 py-1 border hover:bg-muted cursor-pointer"
-                        onClick={() =>
-                          setOpenCell({ datum: dateStr, delovisce_id: d.id })
-                        }
+                        onClick={() => setOpenCell({ datum: dateStr, delovisce_id: d.id })}
                       >
                         {zdravnikiZaCelico.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
@@ -269,26 +204,29 @@ export default function TableMesecniRazpored() {
         </table>
       </div>
 
-      {/* Dialog */}
       <Dialog open={!!openCell} onOpenChange={() => setOpenCell(null)}>
         <DialogContent>
-          <DialogTitle>Izberi zdravnike</DialogTitle>
-          {zdravniki.map((z) => {
-            const key = `${openCell?.datum}_${openCell?.delovisce_id}`
-            const izbrani = razpored[key]?.find((zr) => zr.id === z.id)
-            return (
-              <Button
-                key={z.id}
-                variant={izbrani ? "secondary" : "outline"}
-                className="m-1"
-                onClick={() =>
-                  openCell && handleSelectZdravnik(openCell, z)
-                }
-              >
-                {z.skrajsava}
-              </Button>
-            )
-          })}
+          <DialogTitle>Vnesi skrajšavo zdravnika</DialogTitle>
+          <Input
+            autoFocus
+            placeholder="Išči po skrajšavi..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={handleKeyDown}
+          />
+          <div className="flex flex-wrap gap-2 mt-2">
+            {zdravniki
+              .filter((z) => z.skrajsava?.toLowerCase().includes(search.toLowerCase()))
+              .map((z) => (
+                <Button
+                  key={z.id}
+                  variant="outline"
+                  onClick={() => openCell && handleAddZdravnik(openCell, z)}
+                >
+                  {z.skrajsava}
+                </Button>
+              ))}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
