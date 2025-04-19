@@ -180,3 +180,4 @@ export default function TableOddelki({ data }: Props) {
     </div>
   )
 }
+

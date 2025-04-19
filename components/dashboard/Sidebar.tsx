@@ -85,19 +85,20 @@ const Sidebar = () => {
       <hr className="border-t border-gray-300 my-2" />
 
       {/* Podkategorije Delovišč */}
-      <Button
-        asChild
-        variant="ghost"
-        className={cn(
-          "w-full justify-start gap-2 pl-8",
-          isActive("/dashboard/delovisca/mesecna") && activeClass
-        )}
-      >
-        <Link href="/dashboard/delovisca/mesecna">
-          <Calendar className="h-4 w-4" />
-          Mesečni razpored
-        </Link>
-      </Button>
+     <Button
+  asChild
+  variant="ghost"
+  className={cn(
+    "w-full justify-start gap-2",
+    isActive("/dashboard/mesecnirazpored") && activeClass
+  )}
+>
+  <Link href="/dashboard/mesecnirazpored">
+    <Calendar className="h-4 w-4" />
+    Mesečni razpored
+  </Link>
+</Button>
+
 
       <Button
         asChild
