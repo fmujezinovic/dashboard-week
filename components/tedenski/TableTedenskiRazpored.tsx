@@ -9,6 +9,7 @@ import {
   format,
   startOfMonth,
   endOfMonth,
+  getDay,
 } from "date-fns"
 import { sl } from "date-fns/locale"
 import { Badge } from "@/components/ui/badge"
@@ -29,6 +30,15 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { X } from "lucide-react"
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select"
+
+// tipi
 
 type Oddelek = { id: string; naziv: string }
 type Delovisce = { id: string; naziv: string }
@@ -97,7 +107,7 @@ export default function TableTedenskiRazpored() {
       let q = supabase
         .from("mesecni_razporedi")
         .select(`id, datum, delovisce_id, oddelek_id,
-           mesecni_razporedi_zdravniki!inner(zdravnik_id, zdravniki!inner(id, skrajsava))`)
+          mesecni_razporedi_zdravniki!inner(zdravnik_id, zdravniki!inner(id, skrajsava))`)
         .gte("datum", start)
         .lte("datum", end)
 
@@ -125,8 +135,8 @@ export default function TableTedenskiRazpored() {
 
     fetchSchedule()
     const channel = supabase
-      .channel('razporedi')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'mesecni_razporedi_zdravniki' }, fetchSchedule)
+      .channel("razporedi")
+      .on("postgres_changes", { event: "*", schema: "public", table: "mesecni_razporedi_zdravniki" }, fetchSchedule)
       .subscribe()
 
     return () => channel.unsubscribe()
@@ -140,26 +150,16 @@ export default function TableTedenskiRazpored() {
     if (!schedId) {
       const { data, error } = await supabase
         .from("mesecni_razporedi")
-        .insert({
-          datum: cell.datum,
-          delovisce_id: cell.delovisce_id,
-          ...(selectedOddelek && { oddelek_id: selectedOddelek }),
-        })
-        .select('id')
+        .insert({ datum: cell.datum, delovisce_id: cell.delovisce_id, ...(selectedOddelek && { oddelek_id: selectedOddelek }) })
+        .select("id")
         .single()
       if (error || !data) return
       schedId = data.id
       setScheduleIds((prev) => ({ ...prev, [key]: schedId }))
     }
 
-    await supabase
-      .from("mesecni_razporedi_zdravniki")
-      .insert({ razpored_id: schedId, zdravnik_id: doc.id })
-
-    setSchedule((prev) => ({
-      ...prev,
-      [key]: [...(prev[key] || []), doc],
-    }))
+    await supabase.from("mesecni_razporedi_zdravniki").insert({ razpored_id: schedId, zdravnik_id: doc.id })
+    setSchedule((prev) => ({ ...prev, [key]: [...(prev[key] || []), doc] }))
     setOpenCell(null)
     setSearch("")
   }
@@ -169,16 +169,8 @@ export default function TableTedenskiRazpored() {
     const schedId = scheduleIds[key]
     if (!schedId) return
 
-    await supabase
-      .from("mesecni_razporedi_zdravniki")
-      .delete()
-      .eq("razpored_id", schedId)
-      .eq("zdravnik_id", doc.id)
-
-    setSchedule((prev) => ({
-      ...prev,
-      [key]: prev[key].filter((z) => z.id !== doc.id),
-    }))
+    await supabase.from("mesecni_razporedi_zdravniki").delete().eq("razpored_id", schedId).eq("zdravnik_id", doc.id)
+    setSchedule((prev) => ({ ...prev, [key]: prev[key].filter((z) => z.id !== doc.id) }))
   }
 
   const persistOrder = async (list: Delovisce[]) => {
@@ -218,6 +210,52 @@ export default function TableTedenskiRazpored() {
 
   return (
     <div className="space-y-8">
+      <div className="flex flex-wrap gap-4 items-center justify-between">
+        <div className="flex gap-2">
+          <Select value={String(mesec)} onValueChange={(val) => setMesec(Number(val))}>
+            <SelectTrigger className="w-32">
+              <SelectValue placeholder="Mesec" />
+            </SelectTrigger>
+            <SelectContent>
+              {[...Array(12)].map((_, i) => (
+                <SelectItem key={i + 1} value={String(i + 1)}>
+                  {format(new Date(2000, i, 1), "LLLL", { locale: sl })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={String(leto)} onValueChange={(val) => setLeto(Number(val))}>
+            <SelectTrigger className="w-24">
+              <SelectValue placeholder="Leto" />
+            </SelectTrigger>
+            <SelectContent>
+              {[...Array(5)].map((_, i) => {
+                const year = new Date().getFullYear() - 2 + i
+                return (
+                  <SelectItem key={year} value={String(year)}>
+                    {year}
+                  </SelectItem>
+                )
+              })}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Select value={selectedOddelek} onValueChange={(val) => setSelectedOddelek(val)}>
+          <SelectTrigger className="w-64">
+            <SelectValue placeholder="Izberi oddelek" />
+          </SelectTrigger>
+          <SelectContent>
+            {oddelki.map((o) => (
+              <SelectItem key={o.id} value={o.id}>
+                {o.naziv}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>Tedenski razpored — {format(monthStart, 'LLLL yyyy', { locale: sl })}</CardTitle>
@@ -258,7 +296,7 @@ export default function TableTedenskiRazpored() {
                             const key = `${format(d, 'yyyy-MM-dd')}_${dv.id}`
                             const docs = schedule[key] || []
                             return (
-                              <td key={key} className="border px-2 py-1 text-center hover:bg-muted cursor-pointer" onClick={() => setOpenCell({ datum: format(d, 'yyyy-MM-dd'), delovisce_id: dv.id })}>
+                              <td key={key} className={`border px-2 py-1 text-center hover:bg-muted cursor-pointer ${[6, 0].includes(getDay(d)) ? 'bg-gray-100' : ''}`} onClick={() => setOpenCell({ datum: format(d, 'yyyy-MM-dd'), delovisce_id: dv.id })}>
                                 {docs.length ? docs.map(doc => (
                                   <Badge key={doc.id}>
                                     {doc.skrajsava}
