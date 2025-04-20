@@ -63,9 +63,18 @@ export default function TableTedenskiRazpored() {
   const dragItem = useRef<number | null>(null)
   const dragOverItem = useRef<number | null>(null)
 
-  useEffect(() => {
+useEffect(() => {
     supabase.from("oddelki").select("id, naziv").then(({ data }) => {
-      if (data) setOddelki(data)
+      if (data) {
+        const unique = new Map()
+        data.forEach((o) => {
+          const key = o.naziv.toLowerCase().includes("klinika") ? "klinika" : o.naziv
+          if (!unique.has(key)) unique.set(key, o)
+        })
+        const klinika = [...unique.values()].filter(o => o.naziv.toLowerCase().includes("klinika"))
+        const ostali = [...unique.values()].filter(o => !o.naziv.toLowerCase().includes("klinika"))
+        setOddelki([...klinika, ...ostali])
+      }
     })
   }, [])
 
