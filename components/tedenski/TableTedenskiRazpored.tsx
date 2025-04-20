@@ -1,4 +1,3 @@
-// components/tedenski/TableTedenskiRazpored.tsx
 "use client"
 
 import { useState, useEffect, useRef } from "react"
@@ -8,7 +7,6 @@ import {
   endOfWeek,
   addDays,
   format,
-  getDay,
   startOfMonth,
   endOfMonth,
 } from "date-fns"
@@ -220,12 +218,6 @@ export default function TableTedenskiRazpored() {
 
   return (
     <div className="space-y-8">
-      {/* Filters */}
-      <div className="flex gap-4 items-center">
-        {/* Selects for mesec, leto, oddelek */}
-        {/* ... (ostaje nepromijenjeno) */}
-      </div>
-
       <Card>
         <CardHeader>
           <CardTitle>Tedenski razpored — {format(monthStart, 'LLLL yyyy', { locale: sl })}</CardTitle>
@@ -241,7 +233,22 @@ export default function TableTedenskiRazpored() {
                 <TabsContent key={idx} value={`teden-${idx + 1}`}>
                   <table className="w-full table-fixed text-sm border-collapse">
                     <thead>
-                      {/* Headers (dan + datum) */}
+                      <tr>
+                        <th className="w-36 border px-2 py-1 bg-muted">Delovišče</th>
+                        {days.map((day, i) => (
+                          <th key={i} className="border px-2 py-1 text-center bg-muted font-semibold">
+                            {format(day, "EEEE", { locale: sl })}
+                          </th>
+                        ))}
+                      </tr>
+                      <tr>
+                        <th className="w-36 border px-2 py-1 bg-muted">Datum</th>
+                        {days.map((day, i) => (
+                          <th key={i} className="border px-2 py-1 text-center bg-muted">
+                            {format(day, "d. M.")}
+                          </th>
+                        ))}
+                      </tr>
                     </thead>
                     <tbody>
                       {delovisca.map((dv, i) => (
