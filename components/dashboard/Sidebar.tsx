@@ -108,7 +108,7 @@ const Sidebar = () => {
           isActive("/dashboard/delovisca/tedenska") && activeClass
         )}
       >
-        <Link href="/dashboard/delovisca/tedenska">
+        <Link href="/dashboard/tedenskirazpored">
           <Calendar className="h-4 w-4" />
           Tedenski razpored
         </Link>
