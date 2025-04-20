@@ -38,8 +38,6 @@ import {
   SelectItem,
 } from "@/components/ui/select"
 
-// tipi
-
 type Oddelek = { id: string; naziv: string }
 type Delovisce = { id: string; naziv: string }
 type Zdravnik = { id: string; skrajsava: string }
@@ -63,7 +61,7 @@ export default function TableTedenskiRazpored() {
   const dragItem = useRef<number | null>(null)
   const dragOverItem = useRef<number | null>(null)
 
-useEffect(() => {
+  useEffect(() => {
     supabase.from("oddelki").select("id, naziv").then(({ data }) => {
       if (data) {
         const unique = new Map()
@@ -82,7 +80,7 @@ useEffect(() => {
     const query = selectedOddelek
       ? supabase
           .from("delovisca_oddelki")
-          .select("delovisce(id, naziv), sort_index")
+          .select("delovisce:delovisce_id(id, naziv), sort_index")
           .eq("oddelek_id", selectedOddelek)
           .order("sort_index")
       : supabase.from("delovisca").select("id, naziv")
@@ -90,7 +88,9 @@ useEffect(() => {
     query.then(({ data }) => {
       if (data) {
         if (selectedOddelek) {
-          setDelovisca((data as any[]).map((r) => r.delovisce))
+          const mapped = (data as any[]).map((r) => r.delovisce)
+          const unique = Array.from(new Map(mapped.map((d: Delovisce) => [d.id, d])).values())
+          setDelovisca(unique)
         } else {
           setDelovisca(data as Delovisce[])
         }
@@ -307,7 +307,7 @@ useEffect(() => {
                             return (
                               <td key={key} className={`border px-2 py-1 text-center hover:bg-muted cursor-pointer ${[6, 0].includes(getDay(d)) ? 'bg-gray-100' : ''}`} onClick={() => setOpenCell({ datum: format(d, 'yyyy-MM-dd'), delovisce_id: dv.id })}>
                                 {docs.length ? docs.map(doc => (
-                                  <Badge key={doc.id}>
+                                  <Badge key={doc.id} className="mr-1">
                                     {doc.skrajsava}
                                     <button onClick={(e) => { e.stopPropagation(); handleRemove({ datum: format(d, 'yyyy-MM-dd'), delovisce_id: dv.id }, doc) }} className="ml-1 text-muted-foreground hover:text-destructive">
                                       <X className="w-3 h-3" />
